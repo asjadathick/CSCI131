@@ -1,0 +1,24 @@
+; Maximum and minimum values in array
+; Using an into into the array
+.origin 1000
+maxval=77777
+minval=100000
+len=20
+start:mov #minval,max
+  mov #maxval,min
+  mov #len,r2
+  clr r0
+loop: cmp data(r0),max
+  blt notlarge
+  mov data(r0),max
+notlarge: cmp data(r0),min
+  bgt notsmall
+  mov data(r0),min
+notsmall: add #2,r0
+  sob r2,loop
+  halt
+max: .word 0
+min: .word 0
+data: .word 167776, 317, 4051, 67676, 174210, 74, 7776, 7, 147333, 31410, 172315, 5612, 31013, 23712, 555, 177204
+.end start
+

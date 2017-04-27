@@ -1,0 +1,29 @@
+; input demo
+; read line from keyboard
+; count lower case vowels (not checking upper case)
+tks=177560 ; control register for keyboard
+tkb=177562 ; data register for keyboard
+tps=177564 ; control register for console output
+tpb=177566 ; data register for console output
+.origin 1000
+; this version just reads characters until newline
+start:call getchar
+  call putch
+  cmp r0,#15
+  bne start
+  halt
+; getchar
+; wait for flag to set
+; read the character
+; (going to assume no errors)
+getchar:inc @#tks ; enable
+getloop: bit #200,@#tks ; wait for done flag
+    beq getloop
+    movb @#tkb,r0
+    return
+; putchar - need to echo the character
+putch:mov r0,@#tpb
+wtc:	tstb @#tps
+  bpl wtc
+  return
+.end start

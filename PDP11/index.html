@@ -1,0 +1,296 @@
+<html>
+<head>
+<title>PDP-11 Simulator and example programs</title>
+</head>
+<body>
+<h1 style='text-align:center'><font style='font-size:2em;color:red'>CSCI131</font></h1>
+<h2>Sections</h2>
+<ul>
+<li><a href='#julius'>Julius Schmidt's Javascript PDP-11 emulator</a></li>
+<li><a href='#csci131'>CSCI131 Assembler and execution system</a></li>
+<li><a href='#programs'>Programs as illustrated in lecture notes</a></li>
+<li><a href='#download'>Download system</a></li>
+</ul>
+<a name='julius'><h1>PDP-11</h1>
+<p>The simulator is implemented in Javascript; it models a PDP-11/40
+computer with a disk, teletype, and clock.</p>
+<p>The simulator itself was written by 
+<a href='http://www.aiju.de/about_me/'><em>Julius Schmidt</em></a>
+who wanted to run 1976 Unix V6.  You can run Unix V6 on his machine at his
+site <a href='http://pdp11.aiju.de'>pdp11.aiju.de</a>. That version of the code
+downloads an image of Unix V6 copying it to the emulated disk 
+(i.e. a big Javascript int[]), and
+then starting it.  If you have a good machine, and you are
+running a decent Javascript (such as that in the Chrome browser), his emulated PDP-11
+runs Unix at almost the same speed as the original hardware.  (It shows number of instructions
+per second, and it's close to 1 million instructions per second.)  Create a file in C,
+compile it, run it.  Everything works.  (But it is Unix-V6.  You have to use 'ed' as
+your editor.  You can switch a setting and have a full character set, but by
+default it is TTY-33 so there are many missing characters - e.g. '{' is /(.  The
+C dialect is 1976; more than a little archaic.)</p>
+<h2>Running Unix V6 on Julius Schmidt's Javascript PDP-11</h2>
+<img src='./images/doc1.jpg' alt='screenshot of Unix running'/>
+<a name='csci131'><h1>Bare PDP-11</h1>
+<p>The exercises for CSCI131 use the bare machine - no operating system.  
+The simulator is introduced in the lecture <a href='http://www.uow.edu.au/~nabg/131/04PDP11.pdf'>04PDP11.pdf</a>
+It is presented in a <a href='./Page1.html'>HTML page with four tabs</a>.</p>
+<ul>
+<li><a href='#assemble'>Editing and Assembly</a></li>
+<li><a href='#Symbols'>Symbol Table</a></li>
+<li><a href='#Exec'>Program Execution</a></li>
+<li><a href='#dump'>Dump memory</a></li>
+</ul>
+<img src='./images/doc2.jpg' alt='screenshot of simulator'/>
+<a name='assemble'/><h2>Editing and Assembly</h2>
+<p>The first tab has a text area where you can enter the assembly language code for
+your PDP-11 program.  The code can be typed in directly, or you can load code from
+a file on your own computer that you have created using some preferred text editor.</p>
+<p>The assembler that has been added to Julius Schmidt's Javascript system is a 
+simple absolute assembler.  You specify the locations where your instructions and
+data are to be stored.  There is no provision for linking multiple files; a program must
+be complete.</p>
+<p>The assembly directives that are supported are:</p>
+<dl>
+<dt>.origin</dt>
+<dd>Sets the start address for the next segment of code or data</dd>
+
+<dt>.end</dt>
+<dd>Marks the end of the program and identifies a start address.
+</dd>
+
+<dt>.string</dt>
+<dd>Ascii text that will be terminated by at least one null byte.
+</dd>
+
+<dt>.word</dt>
+<dd>Comma separated list of word values.
+</dd>
+
+<dt>.blkw</dt>
+<dd>Reserves a block of memory of specified number of words.
+</dd>
+
+<dt>semi-colon</dt>
+<dd>A semi-colon character ';' marks the start of a comment.
+</dd>
+
+</dl>
+<p>All numbers used must be octal (no preceding 0, this isn't C/C++).  The
+lecture <a href='http://www.uow.edu.au/~nabg/131/05PDP11Details.pdf'>05PDP11Details.pdf</a>
+has an introduction to the instruction set and addressing modes of the PDP-11.
+The <a href='./pdp11-40.pdf'>PDP-11-40 Manual</a> has more details of instructions.</p>
+<p>On a bare PDP-11, the first 1000octal locations are typically reserved.  The lowest
+order addresses are used for interrupt vectors (all explained in the lectures).  The
+system stack starts at 776 (octal) and grows down.  So programs will typically have a
+start address of 1000.</p>
+<h3>First example</h3>
+<p>The first example, as in the lecture notes, will be a program that copies a string
+and determines the length of the string.  An equivalent C++ program would be something
+like the following:</p>
+<img src='./images/doc3.jpg'>
+<p>(The C++ code has no output.  You would have to run it with the gdb debugger and inspect 
+data in memory.  Which is appropriate, because this first PDP-11 assembly language program
+doesn't generate any output and results must be viewed via a memory dump.)</p>
+<p>The PDP-11 Assembly language code that should be typed into the textarea in the
+web-page is:</p>
+<pre>
+; Program to copy and determine length of string
+.origin 1000
+start: mov #msga, r1
+   mov #msgb, r2
+   clr r0
+l1: movb (r1)+, (r2)+
+   beq done
+   inc r0
+   br l1
+done: halt
+msga: .string "A string whose length is to be determined"
+msgb: .string "Different string that should get overwritten"
+.end start
+</pre>
+<p>The program uses registers r1 and r2 as pointers; and register r0 will be used
+to accumulate a count that will give the length of the copied string.  Registers
+r1 and r2 are loaded with the byte addresses of the source string and destination
+area. The program loops, copying a byte from the source to the destination.  The
+registers are updated after each byte is copied.  The loop terminates when a nul
+byte was copied to mark the end of the string; otherwise register r0 is incremented
+and the loop repeats.</p>
+<p>The code should be copy-pasted into the code area:</p>
+<img src='./images/doc4.jpg'>
+<p>The HTML button "Assemble" invokes the assembly process.  This program should assemble 
+without errors.  The code is automatically loaded into the memory of
+the simulated PDP-11.</p>
+<a name='Symbols'><h2>Symbol table</h2>
+<p>The first pass of the two pass assembly process works out the locations
+that will be used for instructions and data elements.  All labels (names of data
+elements, labels used on instructions that get referenced in branches and jumps)
+are entered into the symbol table.  When running programs, or inspecting memory
+dumps, you need to know the address of the data elements that you wish to view.</p>
+<p>The generated symbol table can be viewed in the "Symbol Table" tab.</p>
+<img src='./images/doc5.jpg'>
+<a name='Exec'><h2>Program execution</h2>
+<p>The 'Program execution' tab has the controls and displays for program execution.</p>
+<img src='./images/doc6.jpg'>
+<p>Programs can be executed in single-step mode - one instruction at a time, under
+user control (use the "Step" button to execute the next instruction).  Alternatively,
+the program can be run in step-step mode; the program runs continuously (it's slowed
+down considerably, by delays between each instruction, so that a 
+user can observe what is going on).  If it's running in step-step mode, clicking the
+"Step" button will put it back in single step mode.</p>
+<h4>Controls</h4>
+<img src='./images/doc7.jpg'>
+<p>The "Restart" button should reset the states of machine and registers to what they
+were when the program was just loaded, allowing the execution process to be started
+over agin.</p>
+<p>As the program executes, the line with the last executed instruction is highlighted
+in the "Generated code" text area:</p>
+<img src='./images/doc8.jpg'>
+<p>If the program is too long to appear in its entirety, the textarea should scroll 
+to show the highlighted instruction.</p>
+<p>The registers, status flags, and priority settings are updated as each instruction
+is executed.</p>
+<img src='./images/doc9.jpg'>
+<p>The combination of register display and instruction highlighting allow the user
+to observe in detail the execution steps.  If a user wants to watch in detail, he/she
+uses the single-step "Step" button; but when boredom sets in, the "Step-Step" button
+can be used to get the program to run to completion.</p>
+<p>Execution terminates when a halt instruction is reached.  (All memory is initialized
+to 0; 0 is the op-code for "halt".  So if an erroneous program jumps to some random unused
+part of memory it immediately halts.)</p>
+<img src='./images/doc10.jpg'>
+<p>Program output to the simulated teletype device appears in the text area that is
+part of the image of an ASR-33 model teletype.  If a program is to read input, the
+mouse must be clicked in this same text area before characters are typed.  (Characters
+typed in are not printed automatically; the program must echo characters if display
+is needed.)  Input and output are slowed so that wait loops and interrupt
+handling can be observed (in Step-Step mode, speed works out as
+about twice as fast as the original ASR-33 hardware).</p>
+<img src='./images/doc11.jpg'>
+<a name='dump'><h2>Dump memory</h2>
+<p>The "Dump memory" tab has a control and a text area.  The text area is used
+to display memory locations and their contents.  Each line in the memory dump
+shows the contents of 8 words (16 bytes) of memory.  The leftmost column shows
+the address of the first word of that line.</p>
+<p>The "Dump memory" HTML button is used to get the current contents of memory
+displayed.</p>
+<img src='./images/doc12.jpg'>
+<p>The program does not have to terminate before you take a memory dump.  If
+you are running in single step mode, you can at any time switch tabs and use the
+"Dump memory" button to get the memory displayed.</p>
+<a name='programs'><h1>Example programs from lectures</h1>
+<p>There are several example PDP-11 programs in the
+<a href='http://www.uow.edu.au/~nabg/131/05PDP11Details.pdf'>PDP-11 details lecture</a>.  They
+illustrate basic data manipulations, loops, function calls and use of stack,
+wait-loop I/O, 'supervisor calls' and interrupt handling.  They build up to a kind
+of simplified interrupt driven operating system.</p>
+<p>The <a href='http://www.uow.edu.au/~nabg/131/10Compilers.pdf'>Compilers</a> lecture
+and associated assessment tasks show how to construct a compiler for a small
+subset of Basic (? well, a Basic-like language)
+that generates code that can run on the simulated PDP-11 with 
+the primitive OS and a systems library (the limited equivalent of Linux's libc).</p>
+<p>Some of these programs are included in the download package.</p>
+<dl>
+
+<dt><a href='./Examples/strcpylen.txt'>strcpylen.txt</a>
+</dt>
+<dd>The program shown above that copies a string and counts the
+number of characters.
+</dd>
+<dt><a href='./Examples/minmax1.txt'>minmax1.txt</a>
+</dt>
+<dd>Example from 04PDP11.pdf, about slide 47, finding minimum and maximum values
+in an array.  Loops through array using address pointer style code (like C/C++
+<code>int data[16];
+int* ptr = data: - int val = *ptr;</code>.)
+</dd>
+<dt><a href='./Examples/minmax2.txt'>minmax2.txt</a>
+</dt>
+<dd>Example from 04PDP11.pdf, about slide 59, finding minimum and maximum values
+in an array.  Loops through array using indexed addressing (like C/C++
+<code>int data[16]; int ndx=0;
+int val = data[ndx]</coe> array subscripting code.)
+</dd>
+<dt><a href='./Examples/Sub1Count1s.txt'>Sub1sCount1s.txt</a>
+</dt>
+<dd>Example from 04PDP11.pdf, about slide 70, that illustrates call to a
+subroutine (with return address placed on stack etc).
+</dd>
+<dt><a href='./Examples/tty.txt'>tty.txt</a>
+</dt>
+<dd>Example from 04PDP11.pdf, about slide 78, showing wait loop I/O being
+used while printing a message.
+</dd>
+<dt><a href='./Examples/input.txt'>input.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 65, showing wait loop I/O being
+used reading and echoing characters.
+</dd>
+<dt><a href='./Examples/sortarray.txt'>sortarray.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 80, sorting array.  Illustrates
+array access with indexed addressing mode.
+</dd>
+<dt><a href='./Examples/itoa.txt'>itoa.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 90, showing recursion (recursive
+implementation of integer to ascii string function).
+</dd>
+<dt><a href='./Examples/people2.txt'>people2.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 120. Just illustrating how 
+C structs, and access to fields of struct, might be handled in assembly. It's
+a different way of using indexed addressing mode.
+</dd>
+<dt><a href='./Examples/stackframe0.txt'>stackframe0.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 140, introducing proper use
+of "stack frames".
+</dd>
+<dt><a href='./Examples/interrupts1.txt'>interrupts1.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 160, output of message
+using interrupts while supposedly completing some compute task.
+</dd>
+<dt><a href='./Examples/circbuf2.txt'>circbuf2.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 215, use of circular buffer.
+This is the version where interrupts are correctly masked out prior to entry
+to a critical region.  (It's a rather complex example, but needed complexity
+to illustrate the problem.  The concept of "critical regions" must be
+understood by any programmer who intends to implement interrupt driven code.)
+</dd>
+<dt><a href='./Examples/os1b.txt'>os1b.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 220, illustrating a simple
+non-interrupt driven "operating system". 
+<br>The earliest operating systems
+incorporated utility functions such as ascii&lt;-&gt;integer conversion
+functions as well as more fundamental things like i/o handling. In later
+systems, utility functions became part of standard libraries that were
+linked with user code. Also, in early operating systems, OS functions
+were invoked with simple subroutine calls.  This code mimics such
+an early OS.
+</dd>
+<dt><a href='./Examples/os1btrap.txt'>os1btrap.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 260, illustrating
+"traps" or "supervisor calls".  As operating systems became more 
+sophisticated, extra instructions (emt/trap/svc/...) were added
+that were to be used in calls to the OS.  This example is the same
+as the previous one but using "trap" instructions.
+</dd>
+<dt><a href='./Examples/os2btrap.txt'>os2btrap.txt</a>
+</dt>
+<dd>Example from 05PDP11Details.pdf, about slide 280, illustrating
+"traps" or "supervisor calls" and an interrupt driven "OS".
+</dd>
+</dl>
+<a name='download'><h1>Download the system</h1>
+<p>While you can probably run the system from this 
+<a href='http://www.uow.edu.au/~nabg/131/PDP11/Page1.html'>web-site</a>, it's likely to be
+more convenient for you to download the package onto your own machine and simply
+open the main page as a local file.</p>
+<a href='http://www.uow.edu.au/~nabg/131/PDP11/PDP11.tar.gz'>Package for download (tar.gz format).</a>
+<a href='http://www.uow.edu.au/~nabg/131/PDP11/PDP11.zip'>Package for download (zip format).</a>
+</body>
+</html>

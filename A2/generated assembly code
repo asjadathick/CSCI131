@@ -1,0 +1,1269 @@
+                    ; demo of simplified interrupt OS
+                    ; 
+                    ;  system calls
+                    ;     exit = os executes halt instruction!
+                    ;     read = os will read a line from keyboard
+                    ;        returning when a newline character read
+                    ;     write = os will write a line to teletype
+                    ;        returning when line all written (nul character at end)
+                    ;    atoi, and itoa - integer<->string conversions
+                    ;
+                    ; define the operating system calls as trap instructions
+                    exit=104400
+                    readline=104401
+                    writeline=104402
+                    atoi=104403
+                    itoa=104404
+                    ; 
+                    ; data for the trap instruction
+                    trapaddr=34 ; "interrupt entry point" - start address of request handler
+                    trapsw=36 ; location for status word
+                    opsyssw=40 ; value of status word - priority 1
+                    ;
+                    ; data for the teleprinter
+                    ttyaddr=64 ; interrupt entry point for tty - set to address of handler routine
+                    ttysw=66 ; holds status word to load when start handling tty event
+                    tpsw=200 ; value to put in status word - priority 4
+                    tps=177564 ; control register for console output
+                    tpb=177566 ; data register for console output
+                    ;
+                    ; data for the keyboard
+                    kbdaddr=60 ; interrupt entry point for kbd - set to address of handler routine
+                    kbdsw=62 ; holds status word to load when start handling kbd event
+                    kbsw=200 ; value to put in status word 
+                    kbdc=177560 ; control register for console input
+                    kbdb=177562 ; data register for console input
+                    ;
+                    .origin 1000
+001000  012737      osstart: mov #os,@#trapaddr
+001002  001172
+001004  000034
+001006  012737        mov #opsyssw, @#trapsw
+001010  000040
+001012  000036
+001014  012737        mov #tput,@#ttyaddr
+001016  001136
+001020  000064
+001022  012737        mov #tpsw,@#ttysw
+001024  000200
+001026  000066
+001030  012737        mov #kget,@#kbdaddr
+001032  001064
+001034  000060
+001036  012737        mov #kbsw,@#kbdsw
+001040  000200
+001042  000062
+                    ;
+                    ; need to enable interrupts from keyboard and teletype
+                    ; set 'enable' and 'done' in tty
+                    ; enable only in kbd
+001044  012737       mov #300,@#tps
+001046  000300
+001050  177564
+001052  012737       mov #100,@#kbdc
+001054  000100
+001056  177560
+                    ;
+                    ; hopefully all is ready
+                    ; start the application
+001060  000167        jmp application
+001062  000714
+                    ; -----------------
+                    ; handle keyboard interrupt
+001064  113767      kget:movb @#kbdb,ch
+001066  177562
+001070  000042
+001072  116777         movb ch, @ibufptr
+001074  000036
+001076  000030
+001100  005267        inc ibufptr
+001102  000024
+001104  122767         cmpb #15,ch
+001106  000015
+001110  000022
+001112  001401         beq ilinedone
+001114  000002         rti
+                    ; ilinedone - add the nul byte, set flag saying input ready
+001116  105077      ilinedone: clrb @ibufptr
+001120  000006
+001122  005267        inc kbdoneflag
+001124  000004
+001126  000002        rti
+                    ;
+                    ; os variables
+                    ibufptr:.blkw 1
+001130  000000
+                    ibufptr:.blkw 1
+                    kbdoneflag:.blkw 1
+001132  000000
+                    kbdoneflag:.blkw 1
+                    ch:.blkw 1
+001134  000000
+                    ch:.blkw 1
+                    ; ------------
+                    ; handle teleprinter interrupt
+001136  105777      tput:tstb @obufptr
+001140  000024
+001142  001406        beq msgdone
+                    ; There is another character to go
+001144  117737        movb @obufptr,@#tpb
+001146  000016
+001150  177566
+001152  005267        inc obufptr
+001154  000010
+001156  000002        rti
+001160  005267      msgdone:inc printdoneflag
+001162  000004
+001164  000002        rti
+                    ;
+                    ; os variables
+                    obufptr: .blkw 1
+001166  000000
+                    obufptr: .blkw 1
+                    printdoneflag: .blkw 1
+001170  000000
+                    printdoneflag: .blkw 1
+                    ; --------------------------------------------
+                    ; my micro operating system
+                    ; I will be using r0 and r1 (and maybe other registers) so save these
+001172  010046      os:mov r0,-(sp)
+001174  010146        mov r1,-(sp)
+                    ; find out which request - pick up return address as saved in stack
+001176  016601        mov 4(sp),r1
+001200  000004
+                    ; program counter has been incremented - take off 2
+001202  005301        dec r1
+001204  005301        dec r1
+                    ; r1 should hold the address of the trap instruction
+001206  011100        mov (r1),r0
+                    ; r0 now holds the actual trap instruction that was executed
+                    ; bottom 8 bits contain request id - (though typically far fewer 
+                    ; than 255 calls defined)
+                    ; clear the top byte
+001210  042700        bic #177400,r0
+001212  177400
+                    ; convert index to byte offset
+001214  000241        clc ; just in case its set!  
+001216  006100        rol r0
+001220  000170        jmp @osfns(r0)
+001222  001242
+                    ;
+                    ; handle return from os call
+                    ; when reach here r0 should hold number of arguments used
+                    ; by last os call; need to adjust return address that is on stack
+001224  000241      osreturn:clc
+001226  006100        rol r0
+001230  060066        add r0,4(sp)
+001232  000004
+                    ; and put back registers
+001234  012601        mov (sp)+,r1
+001236  012600        mov (sp)+,r0
+001240  000002        rti
+                    ;
+                    ; function table for my os
+001242  001254
+                    osfns: exitos
+001244  001264
+                      read
+001246  001324
+                      write
+001250  001374
+                      getint
+001252  001466
+                      putint
+                    ;
+                    ; exit from os
+001254  000240      exitos: nop
+001256  000240        nop
+001260  000000        halt
+001262  000774        br exitos ; no escape
+                    ; read 
+                    ;    takes one argument - address of buffer where input to be stored
+                    ;    (argument will be in location immediately after trap instruction)
+                    ; uses r0 and r1
+                    ; read characters (echoing them to teleprinter) and store until newline dealt with
+                    ; (and add a nul  byte for safety before returning)
+                    ; on entry r1 still holding address with trap instruction
+001264  005201      read: inc r1
+001266  005201        inc r1
+                    ; r1 now holds address that stores address of buffer
+                    ; make it store the address of buffer
+001270  011167        mov (r1),ibufptr
+001272  177634
+001274  005067        clr kbdoneflag
+001276  177632
+001300  005237        inc @#kbdc 
+001302  177560
+                    ; now get wait in OS - interrupt handled keyboard
+                    ; will eventually set the 'line done flag'
+001304  005767      kbwait:tst kbdoneflag
+001306  177622
+001310  003002       bgt kblinedone
+001312  000001       wait
+                    ; returns from wait state after interrupt handled
+                    ; go back and re-check if line complete
+001314  000773       br kbwait
+                    ; finally - the line has been read; can return to user
+001316  012700      kblinedone:mov #1,r0
+001320  000001
+001322  000740        br osreturn
+                    ;
+                    ; write
+                    ; set up for interrupt driven output
+                    ; (initialize buffer pointer, set done flag to false etc)
+001324  005201      write:inc r1
+001326  005201        inc r1
+001330  011167        mov (r1),obufptr
+001332  177632
+001334  005067        clr printdoneflag
+001336  177630
+                    ; send the first character
+001340  117737        movb @obufptr,@#tpb
+001342  177622
+001344  177566
+001346  005267        inc obufptr
+001350  177614
+                    ; now wait in os until printdoneflag is set
+001352  005767      wrtwait:tst printdoneflag
+001354  177612
+001356  003002        bgt olinedone
+                    ; nothing to do - it's kind of wait loop
+001360  000001        wait
+001362  000773        br wrtwait
+001364  012700      olinedone:mov #1,r0
+001366  000001
+001370  000167        jmp osreturn
+001372  177630
+                    ;
+                    ; getint 
+                    ; processes all digits converting to integer
+                    ; will use r3 while doing multiplications (so save and restore)
+                    ; assumes only short integers so takes only low order part of product
+                    ; has a local variable (valptr)
+001374  010346      getint: mov r3,-(sp)
+001376  005201       inc r1
+001400  005201       inc r1
+001402  011167       mov (r1),valptr
+001404  000056
+001406  005201       inc r1
+001410  005201       inc r1
+001412  011101       mov (r1),r1
+001414  005003       clr r3
+001416  121127      getintl:cmpb (r1),#60
+001420  000060
+001422  002412         blt getintend
+001424  121127         cmpb (r1),#71
+001426  000071
+001430  003007         bgt getintend
+                    ; character is a decimal digit
+001432  112100         movb (r1)+,r0
+001434  162700        sub #60,r0
+001436  000060
+                    ; r0 now holds numeric value 0-9 for next decimal digit
+001440  070327        mul #12,r3
+001442  000012
+001444  060003       add r0,r3
+001446  000763       br getintl
+                    ; result in r3; put it where it should go
+001450  010377      getintend: mov r3,@valptr
+001452  000010
+                    ; replace r3 with saved value
+001454  012603        mov (sp)+,r3
+                    ; note use of 2 args
+001456  012700        mov #2,r0
+001460  000002
+001462  000660        br osreturn
+                    ;
+                    valptr: .word 0
+001464  000000
+                    ; putint - this is a non-recursive version
+                    ; use r2,r3 and same local variable valptr
+001466  010246      putint:mov r2,-(sp)
+001470  010346        mov r3,-(sp)
+001472  005201        inc r1
+001474  005201        inc r1
+001476  011167        mov (r1),valptr
+001500  177762
+001502  005201        inc r1
+001504  005201        inc r1
+001506  011101        mov (r1),r1
+001510  017700        mov @valptr,r0
+001512  177750
+001514  012702        mov #10,r2
+001516  000010
+                    ; start by filling buffer with spaces
+001520  112721      putintfill:movb #40,(r1)+
+001522  000040
+001524  077203         sob r2,putintfill
+                    ; now generate digits
+001526  005700        tst r0
+001530  003003       bgt nonzero
+                    ; simply put 0
+001532  112741       movb #60,-(r1)
+001534  000060
+001536  000414       br putintdone
+001540  005002       nonzero: clr r2
+001542  010003        mov r0,r3
+001544  005703      putintdiv: tst r3
+001546  001410        beq putintdone
+                    ; do a division
+001550  071227        div #12,r2
+001552  000012
+                    ; remainder in r3 is next value of next digit to go in buffer
+001554  062703        add #60,r3
+001556  000060
+001560  110341        movb r3,-(r1)
+                    ; quotient in r2 
+001562  010203        mov r2,r3
+001564  005002        clr r2
+001566  000766        br putintdiv
+                    ; putintdone -
+                    ; replace r3 and r2
+001570  012603      putintdone:  mov (sp)+,r3
+001572  012602       mov (sp)+,r2
+                    ; 2 args
+001574  012700       mov #2,r0 
+001576  000002
+001600  000611      br osreturn
+                    .origin 2000
+002000  004767        call mode
+002002  000164
+002004  004767        call mean
+002006  000116
+002010  104404
+                      itoa
+002012  003040
+                      meanv
+002014  003052
+                      numbuf
+002016  104402
+                      writeline
+002020  003002
+                      msgmean
+002022  104402
+                      writeline
+002024  003052
+                      numbuf
+002026  104402
+                      writeline
+002030  003000
+                      newline
+002032  104404
+                      itoa
+002034  003050
+                      mdmndx
+002036  003052
+                      numbuf
+002040  104402
+                      writeline
+002042  003012
+                      msgmode
+002044  104402
+                      writeline
+002046  003052
+                      numbuf
+002050  104402
+                      writeline
+002052  003000
+                      newline
+002054  004767        call maxandmin
+002056  000306
+002060  104404
+                      itoa
+002062  003044
+                      maxv
+002064  003052
+                      numbuf
+002066  104402
+                      writeline
+002070  003022
+                      msgmax
+002072  104402
+                      writeline
+002074  003052
+                      numbuf
+002076  104402
+                      writeline
+002100  003000
+                      newline
+002102  104402
+                      writeline
+002104  003030
+                      msgmin
+002106  104404
+                      itoa
+002110  003046
+                      minv
+002112  003052
+                      numbuf
+002114  104402
+                      writeline
+002116  003052
+                      numbuf
+002120  104402
+                      writeline
+002122  003000
+                      newline
+002124  104400
+                      exit
+002126  005000        clr r0
+002130  005001        clr r1
+002132  012702        mov #len,r2
+002134  000372
+002136  066001      meanloop: add data(r0),r1
+002140  003370
+002142  062700        add #2,r0
+002144  000002
+002146  077205        sob r2,meanloop
+002150  010103        mov r1,r3
+002152  010105        mov r1,r5
+002154  005004        clr r4
+002156  071467        div num,r4
+002160  001204
+002162  010467        mov r4,meanv
+002164  000652
+002166  000207        return
+002170  005000        clr r0
+002172  005001        clr r1
+002174  005002        clr r2
+002176  005003        clr r3
+002200  005004        clr r4
+002202  005005        clr r5
+002204  012702        mov #len,r2
+002206  000372
+002210  016004      modeloop: mov data(r0),r4
+002212  003370
+002214  006304        asl r4
+002216  005264        inc dmode(r4)
+002220  003054
+002222  062700        add #2,r0
+002224  000002
+002226  077210        sob r2,modeloop
+                      ;run through again and find max index
+002230  012767        modemaxandmin: mov #mminval,maxv
+002232  100000
+002234  000606
+002236  012767        mov #mmaxval,minv
+002240  077777
+002242  000602
+002244  012702        mov #len,r2
+002246  000372
+002250  012700        mov #dmode,r0
+002252  003054
+002254  012767      mdmaxandmin: mov #mminval,maxv
+002256  100000
+002260  000562
+002262  012767        mov #mmaxval,minv
+002264  077777
+002266  000556
+002270  012702        mov #145,r2
+002272  000145
+002274  012700        mov #dmode,r0
+002276  003054
+002300  021067      mdmaxandminloop: cmp @r0,maxv
+002302  000540
+002304  002414        blt mdmaxandminnotlarge
+002306  011067        mov @r0,maxv
+002310  000532
+002312  010004        mov r0,r4
+002314  012705        mov #dmode,r5
+002316  003054
+002320  160504        sub r5,r4
+002322  010405        mov r4,r5
+002324  005004        clr r4
+002326  071427        div #2,r4
+002330  000002
+002332  010467        mov r4,mdmndx
+002334  000512
+002336  021067      mdmaxandminnotlarge: cmp @r0,minv
+002340  000504
+002342  003002        bgt mdmaxandminnotsmall
+002344  011067        mov @r0,minv
+002346  000476
+002350  062700      mdmaxandminnotsmall: add #2,r0
+002352  000002
+002354  077227        sob r2,mdmaxandminloop
+002356  016767        mov maxv,modev
+002360  000462
+002362  000456
+002364  000207        return
+002366  012767      maxandmin: mov #mminval,maxv
+002370  100000
+002372  000450
+002374  012767        mov #mmaxval,minv
+002376  077777
+002400  000444
+002402  012702        mov #len,r2
+002404  000372
+002406  012700        mov #data,r0
+002410  003370
+002412  021067      maxandminloop: cmp @r0,maxv
+002414  000426
+002416  002402        blt maxandminnotlarge
+002420  011067        mov @r0,maxv
+002422  000420
+002424  021067      maxandminnotlarge: cmp @r0,minv
+002426  000416
+002430  003002        bgt maxandminnotsmall
+002432  011067        mov @r0,minv
+002434  000410
+002436  062700      maxandminnotsmall: add #2,r0
+002440  000002
+002442  077215        sob r2,maxandminloop
+002444  000207        return
+                    .origin 3000
+                    ;constants
+                    mmaxval=77777
+                    mminval=100000
+                    len=372
+                    ;String messages
+                    newline: .word 15
+003000  000015
+                    msgmean: .string "Mean: "
+003002  062515
+003004  067141
+003006  020072
+003010  000000
+                    msgmode: .string "Mode: "
+003012  067515
+003014  062544
+003016  020072
+003020  000000
+                    msgmax: .string "Max: "
+003022  060515
+003024  035170
+003026  000040
+                    msgmin: .string "Min: "
+003030  064515
+003032  035156
+003034  000040
+                    ;Data
+                    counter: .word 0
+003036  000000
+                    meanv: .blkw 1
+003040  000000
+                    meanv: .blkw 1
+                    modev: .blkw 1
+003042  000000
+                    modev: .blkw 1
+                    maxv: .blkw 1
+003044  000000
+                    maxv: .blkw 1
+                    minv: .blkw 1
+003046  000000
+                    minv: .blkw 1
+                    mdmndx: .blkw 1
+003050  000000
+                    mdmndx: .blkw 1
+                    numbuf: .blkw 1
+003052  000000
+                    numbuf: .blkw 1
+                    ;data for mode tally
+                    dmode: .word 0
+003054  000000
+                      .word 0
+003056  000000
+                      .word 0
+003060  000000
+                      .word 0
+003062  000000
+                      .word 0
+003064  000000
+                      .word 0
+003066  000000
+                      .word 0
+003070  000000
+                      .word 0
+003072  000000
+                      .word 0
+003074  000000
+                      .word 0
+003076  000000
+                      .word 0
+003100  000000
+                      .word 0
+003102  000000
+                      .word 0
+003104  000000
+                      .word 0
+003106  000000
+                      .word 0
+003110  000000
+                      .word 0
+003112  000000
+                      .word 0
+003114  000000
+                      .word 0
+003116  000000
+                      .word 0
+003120  000000
+                      .word 0
+003122  000000
+                      .word 0
+003124  000000
+                      .word 0
+003126  000000
+                      .word 0
+003130  000000
+                      .word 0
+003132  000000
+                      .word 0
+003134  000000
+                      .word 0
+003136  000000
+                      .word 0
+003140  000000
+                      .word 0
+003142  000000
+                      .word 0
+003144  000000
+                      .word 0
+003146  000000
+                      .word 0
+003150  000000
+                      .word 0
+003152  000000
+                      .word 0
+003154  000000
+                      .word 0
+003156  000000
+                      .word 0
+003160  000000
+                      .word 0
+003162  000000
+                      .word 0
+003164  000000
+                      .word 0
+003166  000000
+                      .word 0
+003170  000000
+                      .word 0
+003172  000000
+                      .word 0
+003174  000000
+                      .word 0
+003176  000000
+                      .word 0
+003200  000000
+                      .word 0
+003202  000000
+                      .word 0
+003204  000000
+                      .word 0
+003206  000000
+                      .word 0
+003210  000000
+                      .word 0
+003212  000000
+                      .word 0
+003214  000000
+                      .word 0
+003216  000000
+                      .word 0
+003220  000000
+                      .word 0
+003222  000000
+                      .word 0
+003224  000000
+                      .word 0
+003226  000000
+                      .word 0
+003230  000000
+                      .word 0
+003232  000000
+                      .word 0
+003234  000000
+                      .word 0
+003236  000000
+                      .word 0
+003240  000000
+                      .word 0
+003242  000000
+                      .word 0
+003244  000000
+                      .word 0
+003246  000000
+                      .word 0
+003250  000000
+                      .word 0
+003252  000000
+                      .word 0
+003254  000000
+                      .word 0
+003256  000000
+                      .word 0
+003260  000000
+                      .word 0
+003262  000000
+                      .word 0
+003264  000000
+                      .word 0
+003266  000000
+                      .word 0
+003270  000000
+                      .word 0
+003272  000000
+                      .word 0
+003274  000000
+                      .word 0
+003276  000000
+                      .word 0
+003300  000000
+                      .word 0
+003302  000000
+                      .word 0
+003304  000000
+                      .word 0
+003306  000000
+                      .word 0
+003310  000000
+                      .word 0
+003312  000000
+                      .word 0
+003314  000000
+                      .word 0
+003316  000000
+                      .word 0
+003320  000000
+                      .word 0
+003322  000000
+                      .word 0
+003324  000000
+                      .word 0
+003326  000000
+                      .word 0
+003330  000000
+                      .word 0
+003332  000000
+                      .word 0
+003334  000000
+                      .word 0
+003336  000000
+                      .word 0
+003340  000000
+                      .word 0
+003342  000000
+                      .word 0
+003344  000000
+                      .word 0
+003346  000000
+                      .word 0
+003350  000000
+                      .word 0
+003352  000000
+                      .word 0
+003354  000000
+                      .word 0
+003356  000000
+                      .word 0
+003360  000000
+                      .word 0
+003362  000000
+                      .word 0
+003364  000000
+                    ;modemaxindex: .blkw 1
+                    ;modemaxval: .word 0
+                    ;actual data from datagen
+003366  000372
+                    num: 372
+                    data: .word 5
+003370  000005
+                    .word 3
+003372  000003
+                    .word 14
+003374  000014
+                    .word 110
+003376  000110
+                    .word 26
+003400  000026
+                    .word 36
+003402  000036
+                    .word 2
+003404  000002
+                    .word 13
+003406  000013
+                    .word 40
+003410  000040
+                    .word 21
+003412  000021
+                    .word 1
+003414  000001
+                    .word 10
+003416  000010
+                    .word 106
+003420  000106
+                    .word 7
+003422  000007
+                    .word 1
+003424  000001
+                    .word 36
+003426  000036
+                    .word 47
+003430  000047
+                    .word 53
+003432  000053
+                    .word 0
+003434  000000
+                    .word 72
+003436  000072
+                    .word 11
+003440  000011
+                    .word 12
+003442  000012
+                    .word 15
+003444  000015
+                    .word 6
+003446  000006
+                    .word 17
+003450  000017
+                    .word 63
+003452  000063
+                    .word 77
+003454  000077
+                    .word 71
+003456  000071
+                    .word 117
+003460  000117
+                    .word 125
+003462  000125
+                    .word 114
+003464  000114
+                    .word 131
+003466  000131
+                    .word 67
+003470  000067
+                    .word 121
+003472  000121
+                    .word 63
+003474  000063
+                    .word 42
+003476  000042
+                    .word 116
+003500  000116
+                    .word 104
+003502  000104
+                    .word 110
+003504  000110
+                    .word 73
+003506  000073
+                    .word 113
+003510  000113
+                    .word 115
+003512  000115
+                    .word 102
+003514  000102
+                    .word 73
+003516  000073
+                    .word 75
+003520  000075
+                    .word 57
+003522  000057
+                    .word 77
+003524  000077
+                    .word 63
+003526  000063
+                    .word 53
+003530  000053
+                    .word 74
+003532  000074
+                    .word 102
+003534  000102
+                    .word 106
+003536  000106
+                    .word 110
+003540  000110
+                    .word 56
+003542  000056
+                    .word 123
+003544  000123
+                    .word 47
+003546  000047
+                    .word 102
+003550  000102
+                    .word 50
+003552  000050
+                    .word 111
+003554  000111
+                    .word 123
+003556  000123
+                    .word 132
+003560  000132
+                    .word 114
+003562  000114
+                    .word 102
+003564  000102
+                    .word 56
+003566  000056
+                    .word 51
+003570  000051
+                    .word 62
+003572  000062
+                    .word 60
+003574  000060
+                    .word 72
+003576  000072
+                    .word 62
+003600  000062
+                    .word 52
+003602  000052
+                    .word 104
+003604  000104
+                    .word 53
+003606  000053
+                    .word 60
+003610  000060
+                    .word 73
+003612  000073
+                    .word 103
+003614  000103
+                    .word 102
+003616  000102
+                    .word 56
+003620  000056
+                    .word 102
+003622  000102
+                    .word 45
+003624  000045
+                    .word 100
+003626  000100
+                    .word 117
+003630  000117
+                    .word 52
+003632  000052
+                    .word 55
+003634  000055
+                    .word 116
+003636  000116
+                    .word 103
+003640  000103
+                    .word 100
+003642  000100
+                    .word 73
+003644  000073
+                    .word 45
+003646  000045
+                    .word 120
+003650  000120
+                    .word 120
+003652  000120
+                    .word 131
+003654  000131
+                    .word 111
+003656  000111
+                    .word 114
+003660  000114
+                    .word 42
+003662  000042
+                    .word 63
+003664  000063
+                    .word 45
+003666  000045
+                    .word 61
+003670  000061
+                    .word 53
+003672  000053
+                    .word 37
+003674  000037
+                    .word 51
+003676  000051
+                    .word 117
+003700  000117
+                    .word 124
+003702  000124
+                    .word 63
+003704  000063
+                    .word 110
+003706  000110
+                    .word 47
+003710  000047
+                    .word 42
+003712  000042
+                    .word 72
+003714  000072
+                    .word 73
+003716  000073
+                    .word 122
+003720  000122
+                    .word 46
+003722  000046
+                    .word 63
+003724  000063
+                    .word 37
+003726  000037
+                    .word 71
+003730  000071
+                    .word 65
+003732  000065
+                    .word 101
+003734  000101
+                    .word 77
+003736  000077
+                    .word 126
+003740  000126
+                    .word 124
+003742  000124
+                    .word 53
+003744  000053
+                    .word 72
+003746  000072
+                    .word 52
+003750  000052
+                    .word 57
+003752  000057
+                    .word 106
+003754  000106
+                    .word 72
+003756  000072
+                    .word 73
+003760  000073
+                    .word 54
+003762  000054
+                    .word 52
+003764  000052
+                    .word 63
+003766  000063
+                    .word 55
+003770  000055
+                    .word 67
+003772  000067
+                    .word 67
+003774  000067
+                    .word 101
+003776  000101
+                    .word 104
+004000  000104
+                    .word 104
+004002  000104
+                    .word 110
+004004  000110
+                    .word 66
+004006  000066
+                    .word 123
+004010  000123
+                    .word 110
+004012  000110
+                    .word 74
+004014  000074
+                    .word 65
+004016  000065
+                    .word 111
+004020  000111
+                    .word 136
+004022  000136
+                    .word 104
+004024  000104
+                    .word 112
+004026  000112
+                    .word 46
+004030  000046
+                    .word 115
+004032  000115
+                    .word 111
+004034  000111
+                    .word 104
+004036  000104
+                    .word 34
+004040  000034
+                    .word 25
+004042  000025
+                    .word 105
+004044  000105
+                    .word 72
+004046  000072
+                    .word 63
+004050  000063
+                    .word 76
+004052  000076
+                    .word 102
+004054  000102
+                    .word 106
+004056  000106
+                    .word 34
+004060  000034
+                    .word 62
+004062  000062
+                    .word 50
+004064  000050
+                    .word 65
+004066  000065
+                    .word 75
+004070  000075
+                    .word 72
+004072  000072
+                    .word 27
+004074  000027
+                    .word 121
+004076  000121
+                    .word 70
+004100  000070
+                    .word 60
+004102  000060
+                    .word 104
+004104  000104
+                    .word 117
+004106  000117
+                    .word 120
+004110  000120
+                    .word 65
+004112  000065
+                    .word 67
+004114  000067
+                    .word 66
+004116  000066
+                    .word 64
+004120  000064
+                    .word 100
+004122  000100
+                    .word 100
+004124  000100
+                    .word 73
+004126  000073
+                    .word 33
+004130  000033
+                    .word 130
+004132  000130
+                    .word 74
+004134  000074
+                    .word 103
+004136  000103
+                    .word 102
+004140  000102
+                    .word 64
+004142  000064
+                    .word 77
+004144  000077
+                    .word 111
+004146  000111
+                    .word 44
+004150  000044
+                    .word 61
+004152  000061
+                    .word 101
+004154  000101
+                    .word 55
+004156  000055
+                    .word 56
+004160  000056
+                    .word 65
+004162  000065
+                    .word 52
+004164  000052
+                    .word 41
+004166  000041
+                    .word 125
+004170  000125
+                    .word 100
+004172  000100
+                    .word 117
+004174  000117
+                    .word 107
+004176  000107
+                    .word 76
+004200  000076
+                    .word 55
+004202  000055
+                    .word 114
+004204  000114
+                    .word 50
+004206  000050
+                    .word 114
+004210  000114
+                    .word 75
+004212  000075
+                    .word 42
+004214  000042
+                    .word 64
+004216  000064
+                    .word 72
+004220  000072
+                    .word 71
+004222  000071
+                    .word 103
+004224  000103
+                    .word 124
+004226  000124
+                    .word 115
+004230  000115
+                    .word 31
+004232  000031
+                    .word 61
+004234  000061
+                    .word 50
+004236  000050
+                    .word 101
+004240  000101
+                    .word 76
+004242  000076
+                    .word 70
+004244  000070
+                    .word 57
+004246  000057
+                    .word 50
+004250  000050
+                    .word 53
+004252  000053
+                    .word 105
+004254  000105
+                    .word 110
+004256  000110
+                    .word 110
+004260  000110
+                    .word 71
+004262  000071
+                    .word 106
+004264  000106
+                    .word 47
+004266  000047
+                    .word 71
+004270  000071
+                    .word 63
+004272  000063
+                    .word 72
+004274  000072
+                    .word 37
+004276  000037
+                    .word 133
+004300  000133
+                    .word 115
+004302  000115
+                    .word 112
+004304  000112
+                    .word 54
+004306  000054
+                    .word 106
+004310  000106
+                    .word 133
+004312  000133
+                    .word 106
+004314  000106
+                    .word 43
+004316  000043
+                    .word 103
+004320  000103
+                    .word 63
+004322  000063
+                    .word 110
+004324  000110
+                    .word 67
+004326  000067
+                    .word 73
+004330  000073
+                    .word 104
+004332  000104
+                    .word 134
+004334  000134
+                    .word 112
+004336  000112
+                    .word 101
+004340  000101
+                    .word 77
+004342  000077
+                    .word 27
+004344  000027
+                    .word 75
+004346  000075
+                    .word 112
+004350  000112
+                    .word 63
+004352  000063
+                    .end osstart

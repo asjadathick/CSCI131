@@ -1,0 +1,125 @@
+; Array of struct
+; each struc needs fourteen bytes
+; 8 for name - 2 each for day, month, year
+; more convenient to make 16 (simplifies turning
+; array index into byte offset)
+strucsz=20 
+tps=177564 ; control register for console output
+tpb=177566 ; data register for console output
+.origin 1000
+start:mov #data,-(sp)
+  mov #4,-(sp)
+  call oldest
+; and again need to clear stack - those two arguments can go
+  add #4,(sp)
+  call puts
+  halt
+;
+; puts
+;   On entry, r0 holds a byte address
+;   Print chars until get null byte
+puts:mov r0,r1
+putl:clr r0
+  movb (r1)+,r0
+  beq done
+  call putch
+  br putl
+done: return
+; print character
+putch:mov r0,@#tpb
+wtc:	tstb @#tps
+  bpl wtc
+  return
+; oldest
+; examine those structs
+;  Going to use some local variables on stack!
+;    oldest - index into array 6(sp)
+;    day for oldest 4(sp)
+;    month for oldest 2(sp)
+;   year for oldest (sp)
+; that is 4 two byte variables
+;  first must reserve that space by adjusting stack pointer
+oldest:sub #10,sp
+   clr 6(sp)  ; ndx=0
+   clr r0
+   mov 14(sp),r1
+   call getstruct
+   mov 10(r0),r1  ; getday
+   mov r1,4(sp) 
+   mov 12(r0),r1 ; getmonth
+   mov r1,2(sp)
+   mov 14(r0),r1 ; getyear
+   mov r1,(sp)
+; now loop through other records to find any that are older
+; use r2 for loop counter
+   clr ,r2
+oldieloop:inc r2
+; num is 12(sp)
+   cmp r2,#4
+   beq doneloop
+   mov r2,r0
+   mov 14(sp),r1
+   call getstruct
+; r0 holds base address of next record
+   mov 14(r0),r1 ;  r1 holds year for other record
+   cmp (sp),r1 ; compare with year for oldest so far
+   blt oldieloop ; current has older year
+   bgt change
+; same year, compare month
+   mov 12(r0),r1
+   cmp 2(sp),r1
+   blt oldieloop
+   bgt change
+; same year and month, compare day of month
+   mov 10(r0),r1
+   cmp 4(sp),r1
+   blt oldieloop
+; change - this record represents older person
+; replace info in 'local' variables on stack
+;
+change:mov r2,6(sp)
+   mov 14(r0),r1
+   mov r1,(sp)
+   mov 12(r0),r1
+   mov r1,2(sp)
+   mov 10(r0),r1
+   mov r1,4(sp)
+   br oldieloop
+; 
+; done - retrieve index of oldest person
+doneloop:mov 6(sp),r0
+  mov 14(sp),r1
+  call getstruct
+; r0 holds struct address, 0 offset for string
+; so it is the return value
+; have to clean up stack - those local variables
+  add #10,sp
+  return
+; getstruct
+;  on entry r0 is index 'ndx' into array
+;        r1 is base address of data
+;  on exit r0 is address of data[ndx]
+getstruct: clc
+  rol r0
+  rol r0
+  rol r0
+  rol r0
+  add r1,r0
+  return
+.origin 2000
+; put data in a separate segment
+data: 
+   .string "tom    "
+   .word 13, 4, 3676 
+   .word 0
+   .string "dick   "
+   .word 34, 3, 3673
+   .word 0
+   .string "harry  "
+   .word 23, 7, 3660
+   .word 0
+   .string "sue    "
+   .word 22, 13, 3671
+   .word 0
+.end start
+

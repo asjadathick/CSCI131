@@ -1,0 +1,30 @@
+; Subroutine 1
+; Subroutine to count number of 1s in bit pattern passed in r0
+; returns result in r0
+; Mainline makes two calls to subroutine
+.origin 1000
+tword=137426
+xword=71442
+count=20
+; Mainline
+start: mov #tword,r0
+  call count1s
+  mov r0,first
+  mov #xword,r0
+  call count1s
+  mov r0,second
+  halt
+; Subroutine
+count1s: clr r1
+  mov #count,r2
+loop: clc
+  ror r0
+  bcc noone
+  inc r1
+noone:sob r2,loop
+  mov r1,r0
+  return
+; data values
+first: .word 0
+second: .word 0
+.end start

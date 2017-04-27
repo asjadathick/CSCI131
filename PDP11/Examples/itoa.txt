@@ -1,0 +1,50 @@
+; integer to ascii
+; 
+tps=177564 ; control register for console output
+tpb=177566 ; data register for console output
+val=1234
+.origin 1000
+start:mov #val,-(sp)
+  call itoa
+  halt
+; Argument is on stack
+itoa:tst 2(sp)
+  bpl positive
+; number was negative
+; put - sign and negate the number
+  neg 2(sp)
+  movb #55,r0
+  call putch
+positive:mov 2(sp),r0
+  call itoa1
+  return
+; itoa1 - recursive convert to decimal
+; argument is in r0 on entry
+; need local variable (on stack)
+itoa1:mov r0,r1
+   clr r0
+   div #12,r0
+   ; quotient in r0, remainder in r1
+   ; if quotient 0 - finished recursion
+   tst r0
+   beq done
+   ; need recursive call
+   ; need to save remainder on stack
+   mov r1,-(sp)
+   call itoa1
+   ; retrieve stacked r1
+   mov (sp)+,r1
+; convert value to character
+done:mov #60,r0
+   add r1,r0
+   call putch
+   return
+putch:mov r0,@#tpb
+wtc:	tstb @#tps
+  bpl wtc
+  return
+.end start
+
+
+
+   

@@ -1,0 +1,124 @@
+<!DOCTYPE HTML >
+<html>
+    <head>
+        <title>PDP-11 Simulation</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <link rel="stylesheet" type="text/css" href="./css/ui-lightness/jquery-ui-1.8.14.custom.css" >
+        <link rel="stylesheet" type="text/css" href="./css/localstyle.css" >
+        <script type="text/javascript" src="./js/symboltable.js" ></script>
+        <script type="text/javascript" src="./js/oldassm.js"></script>
+        <script type="text/javascript" src="./js/pdp11.js"></script>
+        <script type="text/javascript" src="./js/disasm.js"></script>
+        <script type="text/javascript" src="./js/cons.js"></script>
+        <script src='./js/jquery-1.6.2.js' type='text/javascript' ></script>
+        <script src="./js/jquery-ui-1.8.14.custom.min.js" type="text/javascript" ></script>
+        <script type="text/javascript">
+
+            function copydata() {
+                // Will be executed by the file object when all data read.
+                var data = this.result;
+                var program = document.getElementById('codewindow');
+                program.value = data;
+            }
+
+            function loadfile() {
+                var filelist = document.getElementById('progfile').files;
+                var file = filelist[0];
+                var reader = new FileReader();
+                reader.onload = copydata;
+                reader.readAsText(file);
+            }
+        </script>
+        <script type="text/javascript" >
+            $(function() {
+                $("#tabs").tabs();
+            });
+        </script>
+    </head>
+    <body onload="window.resizeTo(1500, 800);">
+  
+    <div id="header">
+        <img src="./images/Javascript11.jpg" alt="PDP-11 banner" />
+    </div>
+    <div id="tabs">
+        <ul>
+            <li><a href="#tabs-1">Editing and Assembly</a></li>
+            <li><a href="#tabs-2">Symbol Table</a></li>
+            <li><a href="#tabs-3">Program execution</a></li>
+            <li><a href="#tabs-4">Dump memory</a></li>
+<!--            <li><a href="#tabs-5">AIJU debug</a></li>-->
+        </ul>
+        <div id="tabs-1">
+            <h1>Your program</h1>
+            <br >
+            <p>Load from file :<input type="file" id="progfile" onchange="loadfile();" accept="text/plain">
+            </p>
+            <textarea  id="codewindow" rows="20" cols="80" class="codelisting"  ></textarea>
+            <br >
+            <input type="button" value="Assemble" onclick="assemble();" >
+            <br >
+            
+
+        </div>
+        <div id="tabs-2">
+            <h1>Symbol table</h1>
+             <table id="symtab" border="1">
+                    <thead>
+                        <tr><th>Symbol</th><th>Value</th></tr>
+                    </thead>
+                    <tbody id="symtabbody">
+                        
+                    </tbody>
+                </table>
+        </div>
+        <div id="tabs-3">
+            <div id="leftcolumn">
+                <h1>Generated code</h1>
+                <textarea id="gencode" rows="30" cols="60" readonly="readonly" class="codelisting"  ></textarea>
+            </div>
+            <div id="rightcolumn"><h1>Execution</h1>
+                <table border="1">
+                    <tr>
+                        <td>R0=<span id="dr0"></span></td>
+                        <td>R1=<span id="dr1"></span></td>
+                        <td>R2=<span id="dr2"></span></td>
+                        <td>R3=<span id="dr3"></span></td>
+                        <td>R4=<span id="dr4"></span></td>
+                        <td>R5=<span id="dr5"></span></td>
+                        <td>R6 (SP) =<span id="dr6"></span></td>
+                        <td>R7 (PC) =<span id="dr7"></span></td>
+                    </tr>
+                    <tr>
+                        <th>Status bits</th>
+                        <td>N <input type="checkbox" disabled id='statusN'></td>
+                        <td>Z <input type="checkbox" disabled id='statusZ'></td>
+                        <td>V <input type="checkbox" disabled id='statusV'></td>
+                        <td>C <input type="checkbox" disabled id='statusC'></td>
+                        <td style="text-align:right">Priority</td>
+                        <td><input type="text" disabled id="prio" size="3" />
+                        <td colspan='3'></td>
+                    </tr>
+                </table>
+                <br>
+                <input type="button" onclick="step1();" value="Step" >
+                <input type="button" onclick="stepstep();" value="StepStep" >
+                <input type="button" onclick="resetprogram()" value="Restart" >
+                <br>
+                <img src="./images/asr-33.jpg"  id ="asr33" alt="tty">
+                <textarea id="terminal" cols="10" rows="2" readonly="readonly" onkeypress="addchar(event.which);" onkeyup="specialchar(event.which);"></textarea>
+            </div>
+        </div>
+        <div id="tabs-4">
+            <input type="button" onclick="dumpmemory();" value="Dump memory" >
+            <br>
+            <textarea id="memdump" cols="80" rows="20" readonly  ></textarea>
+        </div>
+<!--        <div id="tabs-5">-->
+<div id="AIJUDEBUG" style="display:none">
+            <h1>Debug the PDP-11 engine</h1>
+            <p>Shows any errors detected by PDP-11 emulator</p>
+            		<textarea id="debug" readonly="readonly"> </textarea>
+        </div>
+    </div>
+</body>
+</html>

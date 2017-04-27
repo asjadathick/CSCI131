@@ -1,0 +1,73 @@
+/* 
+    Document   : localstyle
+    Created on : 03/08/2011, 3:52:22 PM
+    Author     : nabg
+    Description:
+        Purpose of the stylesheet follows.
+*/
+
+/* 
+   TODO customize this sample style
+   Syntax recommendation http://www.w3.org/TR/REC-CSS2/
+*/
+
+body {
+    background-color: #920e5a
+
+}
+
+.codelisting {
+    font-family: 'Courier New',Courier,monospace;
+    font-size: 10px;
+    background-color: #ffffff;
+    color: #000000;
+}
+
+.ui-state-default a, .ui-state-default a:link, .ui-state-default a:visited
+{
+    color: #920e5a;
+    background-color: whitesmoke;
+    text-decoration: none;
+}
+
+.ui-state-active a, .ui-state-active a:link, .ui-state-active a:visited
+{
+
+    color: #ca082b;
+    background-color:white;
+    text-decoration: none;
+
+}
+.ui-widget-header {
+    background-color: #ca082b;
+    background-image:none;
+}
+
+#leftcolumn {
+    float: left;
+    width: 700px;
+    height: 800px;
+}
+
+#rightcolumn {
+    margin-left:700px;
+    padding-left:10px;
+    height:800px;
+    position:relative;
+}
+
+#terminal {
+    position:absolute;
+    left:190px;
+    top:220px;
+    width:200px;
+    height:60px;
+    font-family: 'Courier New',Courier,monospace;
+    font-size: 10px;
+}
+
+#asr33 {
+    position:absolute;
+    left:10px;
+    top:210px;
+}

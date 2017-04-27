@@ -1,0 +1,58 @@
+; interrupts 1
+; send a string while doing some computation
+.origin  1000
+; This bit is the nascent operating system
+ttyaddr=64 ; interrupt entry point for tty - set to address of handler routine
+ttysw=66 ; holds status word to load when start handling tty input
+tpsw=200 ; value to put in status word
+tps=177564 ; control register for console output
+tpb=177566 ; data register for console output
+osstart:mov #iput,@#ttyaddr
+mov #tpsw,@#ttysw
+; now enable interrupts from tty
+;  need to set bit-6 in its control register
+mov #300,@#tps
+call application
+halt
+; interrupt handling routine
+;    on entry pc and status will have been saved on stack
+;    
+iput:tstb @bufptr
+  beq msgdone
+; There is another character to go
+  movb @bufptr,@#tpb
+  inc bufptr
+  rti
+msgdone:inc @flagptr
+  rti
+; print function 
+;  save in local variable bufptr
+;  send the first character
+print: mov 4(sp),bufptr
+   mov 2(sp),flagptr
+   movb @bufptr,@#tpb
+  inc bufptr
+  return
+bufptr: .word 0
+flagptr:.word 0
+.origin 1400
+; application - arrange for message to be printed, then compute for a while
+;
+application: mov #data,-(sp)
+  mov #doneflag,-(sp)
+  call print
+; remove arguments
+  inc sp
+  inc sp
+  clr count
+loop: inc count
+  tst doneflag
+  beq loop
+  mov count,r0
+  halt
+.origin 2000
+doneflag:.word 0
+data: .string "It works - and about time too!"
+count: .word 0
+.end osstart
+

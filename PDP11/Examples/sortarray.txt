@@ -1,0 +1,45 @@
+; sorting (insertion sort)
+.origin 1000
+; r0 = i in C++ code
+; r1 = 2*r0 is index as byte offset when accessing data
+start: mov #1,r0
+loop: mov r0,r1
+   clc
+   rol r1
+; valtoinsert = data[i]
+   mov data(r1),valtoinsert
+   mov r0,holepos
+; r1 again used as index, now for holepos
+; while(holepos>0 && valtoinsert<data[holepos-1])
+; will use r1 as byte offset for [holepos-1]
+; and r2 as byte offset for [holepos]
+while: tst holepos
+   beq endwhile
+   mov holepos,r1
+   mov holepos,r2
+   dec r1
+; change index to byte offset
+   clc
+   rol r1
+   rol r2
+   cmp valtoinsert,data(r1)
+   bge endwhile
+;  data[holepos] = data[holepos-1]
+   mov data(r1),data(r2)
+   dec holepos
+   br while
+endwhile:mov holepos,r1
+   clc
+   rol r1
+   mov valtoinsert,data(r1)
+   inc r0
+   cmp r0,num
+   blt loop
+   halt
+.origin 2000
+valtoinsert: .word 0
+holepos: .word 0
+num: .word 17
+data: .word 142714, 66007, 41577, 42070, 132466, 27022, 71231, 154575, 53260, 150016, 61772, 145673, 143333, 25373, 122141
+.end start
+
